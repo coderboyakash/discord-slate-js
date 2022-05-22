@@ -9,6 +9,8 @@ import Portal from './Portal'
 const App = () => {
   const ref = useRef()
   const [target, setTarget] = useState()
+  const [tagMode, setTagMode] = useState(false)
+  const [mentionMode, setMentionMode] = useState(false)
   const [index, setIndex] = useState(0)
   const [search, setSearch] = useState('')
   const editor = useMemo(() => withMentions(withImages(withHistory(withReact(createEditor())))),[])
@@ -24,19 +26,39 @@ const App = () => {
         switch (event.key) {
           case 'ArrowDown':
             event.preventDefault()
-            const prevIndex = index >= chars.length - 1 ? 0 : index + 1
+            let prevIndex = 0;
+            if(mentionMode){
+              prevIndex = index >= mentions.length - 1 ? 0 : index + 1
+            }
+            if(tagMode){
+              prevIndex = index >= tags.length - 1 ? 0 : index + 1
+            }
             setIndex(prevIndex)
             break
           case 'ArrowUp':
             event.preventDefault()
-            const nextIndex = index <= 0 ? chars.length - 1 : index - 1
+            let nextIndex = 0;
+            if(mentionMode){
+              nextIndex = index >= mentions.length - 1 ? 0 : index + 1
+            }
+            if(tagMode){
+              nextIndex = index >= tags.length - 1 ? 0 : index + 1
+            }
+            // const nextIndex = index <= 0 ? chars.length - 1 : index - 1
             setIndex(nextIndex)
             break
           case 'Tab':
           case 'Enter':
             event.preventDefault()
             Transforms.select(editor, target)
-            insertMention(editor, chars[index])
+            if(mentionMode){
+              console.log('men');
+              insertMention(editor, mentions[index])
+            }
+            if(tagMode){
+              console.log('tag', tags[index]);
+              insertTag(editor, tags[index])
+            }
             setTarget(null)
             break
           case 'Escape':
@@ -48,18 +70,21 @@ const App = () => {
     },
     [index, search, target]
   )
-  const chars = CHARACTERS.filter(c =>
+  const mentions = CHARACTERS.filter(c =>
+    c.toLowerCase().startsWith(search.toLowerCase())
+  ).slice(0, 10)
+  const tags = TAGS.filter(c =>
     c.toLowerCase().startsWith(search.toLowerCase())
   ).slice(0, 10)
   useEffect(() => {
-    if (target && chars.length > 0) {
+    if (target && (mentions.length > 0 || tags.lengths > 0)) {
       const el = ref.current
       const domRange = ReactEditor.toDOMRange(editor, target)
       const rect = domRange.getBoundingClientRect()
       el.style.top = `${rect.top + window.pageYOffset + 24}px`
       el.style.left = `${rect.left + window.pageXOffset}px`
     }
-  }, [chars.length, editor, index, search, target])
+  }, [mentions.length, tags.lengths, editor, index, search, target])
   return (
     <Slate 
       editor={editor} 
@@ -73,7 +98,16 @@ const App = () => {
           const before = wordBefore && Editor.before(editor, wordBefore)
           const beforeRange = before && Editor.range(editor, before, start)
           const beforeText = beforeRange && Editor.string(editor, beforeRange)
-          const beforeMatch = beforeText && beforeText.match(/^@(\w+)$/)
+          if(beforeText && beforeText.match(/^@(\w+)$/)){
+            setTagMode(false)
+            setMentionMode(true)
+          }
+          if(beforeText && beforeText.match(/^#(\w+)$/)){
+            setTagMode(true)
+            setMentionMode(false)
+          }
+          // console.log('#', beforeText && beforeText.match(/^#(\w+)$/))
+          const beforeMatch = beforeText && (beforeText.match(/^@(\w+)$/) || beforeText.match(/^#(\w+)$/))
           const after = Editor.after(editor, start)
           const afterRange = Editor.range(editor, start, after)
           const afterText = Editor.string(editor, afterRange)
@@ -96,7 +130,7 @@ const App = () => {
         className='slate-editor'
         onKeyDown={onKeyDown}
       />
-      {target && chars.length > 0 && (
+      {mentionMode && target && mentions.length > 0 && (
         <Portal>
           <div
             ref={ref}
@@ -112,16 +146,47 @@ const App = () => {
             }}
             data-cy="mentions-portal"
           >
-            {chars.map((char, i) => (
+            {mentions.map((mention, i) => (
               <div
-                key={char}
+                key={mention}
                 style={{
                   padding: '1px 3px',
                   borderRadius: '3px',
                   background: i === index ? '#B4D5FF' : 'transparent',
                 }}
               >
-                {char}
+                {mention}
+              </div>
+            ))}
+          </div>
+        </Portal>
+      )}
+      {tagMode && target && tags.length > 0 && (
+        <Portal>
+          <div
+            ref={ref}
+            style={{
+              top: '-9999px',
+              left: '-9999px',
+              position: 'absolute',
+              zIndex: 1,
+              padding: '3px',
+              background: 'white',
+              borderRadius: '4px',
+              boxShadow: '0 1px 5px rgba(0,0,0,.2)',
+            }}
+            data-cy="mentions-portal"
+          >
+            {tags.map((tag, i) => (
+              <div
+                key={tag}
+                style={{
+                  padding: '1px 3px',
+                  borderRadius: '3px',
+                  background: i === index ? '#B4D5FF' : 'transparent',
+                }}
+              >
+                {tag}
               </div>
             ))}
           </div>
@@ -171,11 +236,11 @@ const withMentions = editor => {
   const { isInline, isVoid } = editor
 
   editor.isInline = element => {
-    return element.type === 'mention' ? true : isInline(element)
+    return (element.type === 'mention' || element.type === 'tag') ? true : isInline(element)
   }
 
   editor.isVoid = element => {
-    return element.type === 'mention' ? true : isVoid(element)
+    return (element.type === 'mention' || element.type === 'tag') ? true : isVoid(element)
   }
 
   return editor
@@ -209,6 +274,15 @@ const insertMention = (editor, character) => {
   Transforms.insertNodes(editor, mention)
   Transforms.move(editor)
 }
+const insertTag = (editor, character) => {
+  const tag = {
+    type: 'tag',
+    character,
+    children: [{ text: '' }],
+  }
+  Transforms.insertNodes(editor, tag)
+  Transforms.move(editor)
+}
 
 const isImageUrl = url => {
   if (!url) return false
@@ -219,5 +293,9 @@ const isImageUrl = url => {
 const CHARACTERS = [
   'Aayla Secura',
   'Adi Gallia'
+]
+const TAGS = [
+  'Aayla Secura Tag',
+  'Adi Gallia Tag'
 ]
 export default App
