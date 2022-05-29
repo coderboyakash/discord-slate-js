@@ -263,6 +263,7 @@ const insertImage = (editor, url) => {
   const text = {text: ''}
   const image = { type: 'image', url, children: [text] }
   Transforms.insertNodes(editor, image)
+  Transforms.move(editor)
 }
 
 const insertMention = (editor, character) => {

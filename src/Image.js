@@ -3,17 +3,17 @@ import React, { Fragment } from 'react'
 const Image = ({ attributes, children, element }) => {
   return (
     <Fragment>
-      <div {...attributes}>
+      <span {...attributes}>
         {children} 
-        <div
+        <span
           contentEditable={false}
         >
           <img
             className='emoji-image'
             src={element.url}
           />
-        </div>
-      </div>
+        </span>
+      </span>
     </Fragment>
   )
 }
